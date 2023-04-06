@@ -1,0 +1,14 @@
+.idea
+.DS_Store
+
+.mes
+.mbs
+.vmes
+game
+src/*.asset
+src/*.o
+src/*.elf
+src/*.bin
+*.bin
+*.iso
+
