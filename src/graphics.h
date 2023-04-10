@@ -1,5 +1,5 @@
-#ifndef MES_MESGRAPHICS_H
-#define MES_MESGRAPHICS_H
+#ifndef GRAPHICS_H
+#define GRAPHICS_H
 
 #include <math.h>
 #include "stdint.h"
@@ -45,7 +45,6 @@ static void surf_resize(Surface *surf, uint8_t width, uint8_t height) {
 
 static void surf_destroy(Surface *surf) {
     free(surf->data);
-    free(surf);
 }
 
 static void surf_set_pixel(Surface *surf, uint8_t x, uint8_t y, uint8_t color) {
@@ -102,4 +101,4 @@ static void surf_fill(Surface *surf, uint8_t color) {
     }
 }
 
-#endif
+#endif //GRAPHICS_H
