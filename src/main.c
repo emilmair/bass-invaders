@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include <mes.h>
 #include <gpu.h>
 #include <timer.h>
@@ -10,6 +12,9 @@
 #define LEVEL 0 // this is the level already completed by the user (0 = no level completed)
 #define HS 123456
 // todo: replace this with real data once vmes implements the data header
+
+#define PLAYERX_MAX 74
+#define PLAYERY 80
 
 bool run = true;
 uint8_t exit_code = CODE_EXIT;
@@ -30,30 +35,67 @@ uint32_t start_level(uint8_t level) {
     gpu_print_text(FRONT_BUFFER, x(0), y(3), 0b001, 0b000, INLINE_DECIMAL8(HS));
     gpu_print_text(FRONT_BUFFER, x(0), y(5), 0b001, 0b000, "SCORE");
     gpu_print_text(FRONT_BUFFER, x(0), y(8), 0b001, 0b000, "WAVE  /");
-    gpu_print_text(FRONT_BUFFER, x(7), y(8), 0b001, 0b000, INLINE_DECIMAL1(level/8));
-    gpu_print_text(FRONT_BUFFER, x(0), y(10), 0b001, 0b000, "LEFT");
-    gpu_print_text(FRONT_BUFFER, x(0), y(12), 0b001, 0b000, "LIVES");
+    gpu_print_text(FRONT_BUFFER, x(7), y(8), 0b001, 0b000, INLINE_DECIMAL1(ceil((double)level/8)));
+
     Surface space = surf_create(w(14), h(13));
     Surface singer = surf_create(10, 10);
     Surface guitarist = surf_create(10, 10);
     Surface pianist = surf_create(10, 10);
     Surface drummer = surf_create(10, 10);
     Surface bassist = surf_create(10, 10);
+    Surface bass = surf_create(w(2), h(3));
     surf_fill(&space, 0b010);
     surf_fill(&bassist, 0b001);
+    surf_fill(&bass, 0b011);
     uint8_t playerx = 0;
     uint32_t score = 0;
     uint8_t wave = 1; // current wave, maximum number of waves is level/8
-    uint8_t left = level*4; // enemies left, max 256 at level 64
+//    uint8_t left = level*4; // enemies left, max 256 at level 64
     uint8_t lives = (64-level)/16; // lives LEFT, game over when 0 and player dies
 
+    List px = list_create(0); // projectiles x coordinates
+    List py = list_create(0); // projectiles y coordinates
+    uint8_t cooldown = 0;
+
     while (true) {
+        // handle input
+        if (input_get_button(0, BUTTON_LEFT)) if (playerx > 0) playerx--;
+        if (input_get_button(0, BUTTON_RIGHT)) if (playerx < PLAYERX_MAX) playerx++;
+        if (input_get_button(0, BUTTON_A) && cooldown == 0) {
+            list_append(&px, playerx+5);
+            list_append(&py, PLAYERY);
+            cooldown += 25;
+        }
+        if (cooldown > 0) cooldown--;
+        for (int i = 0; i < px.size; i++) {
+            if (py.data[i] == 0) {
+                list_remove(&px, i);
+                list_remove(&py, i);
+                i--;
+            } else {
+                py.data[i] -= 1;
+            }
+        }
+
+        // render HUD
         gpu_print_text(FRONT_BUFFER, x(0), y(6), 0b001, 0b000, INLINE_DECIMAL8(score));
         gpu_print_text(FRONT_BUFFER, x(5), y(8), 0b001, 0b000, INLINE_DECIMAL1(wave));
-        gpu_print_text(FRONT_BUFFER, x(5), y(10), 0b001, 0b000, INLINE_DECIMAL3(left));
-        gpu_print_text(FRONT_BUFFER, x(6), y(12), 0b001, 0b000, INLINE_DECIMAL2(lives));
+        if (lives != 0) {
+            for (int i = 0; i < lives; i++) {
+                gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(0) + w(2)*i, y(10), bass.d);
+            }
+        }
+        gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(8), y(10), bass.d);
 
-        gpu_send_buf(FRONT_BUFFER, w(14), h(13), x(10), y(0), space.data);
+        // render canvas
+        surf_fill(&space, 0b111);
+        surf_draw_surf(&space, &bassist, playerx, PLAYERY);
+        for (int i = 0; i < px.size; i++) {
+            surf_set_pixel(&space, px.data[i], py.data[i], 0b001);
+        }
+        surf_draw_line(&space, playerx, PLAYERY+5, 0, 100, 0b001);
+        gpu_send_buf(FRONT_BUFFER, space.w, space.h, x(10), y(0), space.d);
+
         timer_block_ms(20); // 50 fps
     }
 
@@ -73,8 +115,7 @@ void render_menu(uint8_t level) {
     gpu_print_text(FRONT_BUFFER, x(8), y(3), 0b001, 0b000, INLINE_DECIMAL1(level/8+1));
     for (int i = 0; i < 8; i ++) {
         gpu_print_text(FRONT_BUFFER, x(1), y(5)+8*i, 0b001, 0b000, "LEVEL");
-        uint8_t number = ((level/8)*8)+i+1;
-        gpu_print_text(FRONT_BUFFER, x(7), y(5)+8*i, 0b001, 0b000, INLINE_DECIMAL2(number));
+        gpu_print_text(FRONT_BUFFER, x(7), y(5)+8*i, 0b001, 0b000, INLINE_DECIMAL2(((level/8)*8)+i+1));
         gpu_print_text(FRONT_BUFFER, x(10), y(5+i), 0b001, 0b000, " ");
     }
     gpu_print_text(FRONT_BUFFER, x(10), y(5+level%8), 0b001, 0b000, "<");
