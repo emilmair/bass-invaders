@@ -4,6 +4,7 @@
 #include <gpu.h>
 #include <timer.h>
 #include <input.h>
+#include <rng.h>
 
 #include "graphics.h"
 #include "maths.h"
@@ -16,6 +17,8 @@
 #define PLAYERX_MAX 74
 #define PLAYERY 80
 
+#define BACKGROUND 0b111
+
 bool run = true;
 uint8_t exit_code = CODE_EXIT;
 
@@ -25,9 +28,11 @@ uint8_t w(uint8_t factor) { return factor*6; }
 uint8_t h(uint8_t factor) { return factor*8; }
 
 uint32_t start_level(uint8_t level) {
+    // init
+    rng_init();
+
     gpu_blank(BACK_BUFFER, 0);
     gpu_blank(FRONT_BUFFER, 0);
-    // init
 
     gpu_print_text(FRONT_BUFFER, x(0), y(0), 0b001, 0b000, "LEVEL");
     gpu_print_text(FRONT_BUFFER, x(6), y(0), 0b001, 0b000, INLINE_DECIMAL2(level));
@@ -44,9 +49,16 @@ uint32_t start_level(uint8_t level) {
     Surface drummer = surf_create(10, 10);
     Surface bassist = surf_create(10, 10);
     Surface bass = surf_create(w(2), h(3));
-    surf_fill(&space, 0b010);
+    Surface* enemies[4] = {&singer, &guitarist, &pianist, &drummer};
+
+    surf_fill(&singer, 0b001);
+    surf_fill(&guitarist, 0b010);
+    surf_fill(&pianist, 0b011);
+    surf_fill(&drummer, 0b100);
+    surf_fill(&space, BACKGROUND);
     surf_fill(&bassist, 0b001);
     surf_fill(&bass, 0b011);
+
     uint8_t playerx = 0;
     uint32_t score = 0;
     uint8_t wave = 1; // current wave, maximum number of waves is level/8
@@ -57,6 +69,16 @@ uint32_t start_level(uint8_t level) {
     List py = list_create(0); // projectiles y coordinates
     uint8_t cooldown = 0;
 
+    List ex = list_create(0);
+    List ey = list_create(0);
+    List et = list_create(0);
+
+    for (int i = 0; i < level*4; i++) {
+        list_append(&et, rng_u32()%4); // type
+        list_append(&ex, (w(14)/(level*4) * i) + (w(14)/(level*4))/2); // x position
+        list_append(&ey, 20); // yt position
+    }
+
     while (true) {
         // handle input
         if (input_get_button(0, BUTTON_LEFT)) if (playerx > 0) playerx--;
@@ -64,7 +86,7 @@ uint32_t start_level(uint8_t level) {
         if (input_get_button(0, BUTTON_A) && cooldown == 0) {
             list_append(&px, playerx+5);
             list_append(&py, PLAYERY);
-            cooldown += 25;
+            cooldown += 15;
         }
         if (cooldown > 0) cooldown--;
         for (int i = 0; i < px.size; i++) {
@@ -87,13 +109,45 @@ uint32_t start_level(uint8_t level) {
         }
         gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(8), y(10), bass.d);
 
-        // render canvas
-        surf_fill(&space, 0b111);
+        // render player
+        surf_fill(&space, BACKGROUND);
         surf_draw_surf(&space, &bassist, playerx, PLAYERY);
-        for (int i = 0; i < px.size; i++) {
-            surf_set_pixel(&space, px.data[i], py.data[i], 0b001);
-        }
         surf_draw_line(&space, playerx, PLAYERY+5, 0, 100, 0b001);
+
+        // check enemy collision and draw projectiles
+        for (int i = 0; i < et.size; i++) {
+            surf_draw_filled_rectangle(&space, ex.data[i]-5, ey.data[i]-5, 10, 10, 0b101); // hitboxes in yellow
+        }
+        for (int proj = 0; proj < px.size; proj++) {
+            uint8_t projx = px.data[proj];
+            uint8_t projy = py.data[proj];
+            if (surf_get_pixel(&space, projx, projy) == 0b101) {
+                // collision
+                for (int enemy = 0; enemy < et.size; enemy++) {
+                    if (difference(ex.data[enemy], projx) <= 5 && difference(ey.data[enemy], projy) <= 5) {
+                        surf_draw_filled_rectangle(&space, ex.data[enemy]-5, ey.data[enemy]-5, 10, 10, BACKGROUND);
+                        list_remove(&et, enemy);
+                        list_remove(&ex, enemy);
+                        list_remove(&ey, enemy);
+                        break;
+                    }
+                }
+                list_remove(&px, proj);
+                list_remove(&py, proj);
+                proj--;
+            } else {
+                // no collision
+                surf_set_pixel(&space, projx, projy, 0b001);
+            }
+
+        }
+
+        // render enemies
+        for (int i = 0; i < et.size; i++) {
+            surf_draw_surf(&space, enemies[et.data[i]], ex.data[i]-5, ey.data[i]-5);
+        }
+
+        // send all to gpu
         gpu_send_buf(FRONT_BUFFER, space.w, space.h, x(10), y(0), space.d);
 
         timer_block_ms(20); // 50 fps

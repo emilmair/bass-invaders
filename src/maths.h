@@ -22,6 +22,14 @@ static uint8_t decimal_digit(uint32_t num, uint32_t n) {
     return (uint8_t) r;
 }
 
+static uint32_t absolute(int32_t num) {
+    return (num<0)?-num:num;
+}
+
+static uint32_t difference(uint32_t num1, uint32_t num2) {
+    return absolute((int32_t) num1 - (int32_t) num2);
+}
+
 struct List {
     uint8_t* data;
     uint32_t size;
@@ -44,13 +52,15 @@ static uint8_t list_get(List* list, uint32_t index) {
 }
 
 static void list_append(List* list, uint8_t value) {
-    list->data = realloc(list->data, ++list->size);
+    list->size++;
+    list->data = realloc(list->data, list->size);
     list->data[list->size-1] = value;
 }
 
 static void list_remove(List* list, uint32_t index) {
     if (index > list->size) return;
-    memmove(list->data+index, list->data+index+1, --list->size-index);
+    list->size--;
+    memmove(list->data+index, list->data+index+1, list->size);
     list->data = realloc(list->data, list->size);
 }
 
