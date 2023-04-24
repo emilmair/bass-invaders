@@ -10,6 +10,17 @@
 #define SURF_POSITION(SURF, X, Y) ((Y) * (SURF)->width + (X))
 #define PIXEL_MASK ((1 << SURF_BPP) - 1)
 
+// rgb to gpio config
+#define COLOR_TO_GPIO(red, green, blue) (uint16_t)                                         \
+            (((red & 0b100) >> 1) | ((red & 0b010) << 9) | ((red & 0b001) << 11) |         \
+            ((green & 0b100) << 10) | ((green & 0b010) << 12) | ((green & 0b001) << 14) |  \
+            ((blue & 0b100) << 5) | ((blue & 0b010) << 7) | ((blue & 0b001) << 9))
+
+// gpio config to rgb
+#define RED_FROM_GPIO(color) (((color << 1) & 0b100) | ((color >> 9) & 0b010 ) | ((color >> 11) & 0b001))
+#define GREEN_FROM_GPIO(color) (((color >> 10) & 0b100) | ((color >> 12) & 0b010) | ((color >> 14) & 0b001))
+#define BLUE_FROM_GPIO(color) (((color >> 5) & 0b100) | ((color >> 7) & 0b010) | ((color >> 9) & 0b001))
+
 typedef void (*func)();
 
 typedef union {
@@ -140,6 +151,10 @@ static void surf_draw_surf(Surface* destination_surf, Surface* source_surf, uint
             surf_set_pixel(destination_surf, j+x, i+y, surf_get_pixel(source_surf, j, i));
         }
     }
+}
+
+static void surf_draw_surf_alpha(Surface* destination_surf, Surface* source_surf, uint8_t x, uint8_t y, uint8_t alpha_color) {
+
 }
 
 static void surf_draw_rectangle(Surface* surf, uint8_t x, uint8_t y, uint8_t width, uint8_t height, uint8_t color) {

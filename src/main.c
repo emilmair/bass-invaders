@@ -10,6 +10,13 @@
 #include "maths.h"
 #include "strings.h"
 
+#include "guitarist.m3if.asset"
+#include "singer.m3if.asset"
+#include "pianist.m3if.asset"
+#include "drummer.m3if.asset"
+#include "bassist.m3if.asset"
+#include "bass.m3if.asset"
+
 #define LEVEL 0 // this is the level already completed by the user (0 = no level completed)
 #define HS 123456
 // todo: replace this with real data once vmes implements the data header
@@ -17,7 +24,21 @@
 #define PLAYERX_MAX 74
 #define PLAYERY 80
 
-#define BACKGROUND 0b111
+#define FPS 60
+#define FRAMETIME ((1.0/FPS)*1000)
+
+// palette
+#define WHITE 0b000
+#define BLACK 0b001
+#define DARK_RED 0b010
+#define MEDIUM_RED 0b011
+#define LIGHT_RED 0b100
+#define DARK_BLUE 0b101
+#define MEDIUM_BLUE 0b110
+#define LIGHT_BLUE 0b111
+
+#define BG WHITE
+#define FG BLACK
 
 bool run = true;
 uint8_t exit_code = CODE_EXIT;
@@ -27,37 +48,42 @@ uint8_t y(uint8_t factor) { return 8+factor*8; }
 uint8_t w(uint8_t factor) { return factor*6; }
 uint8_t h(uint8_t factor) { return factor*8; }
 
+// palette testing
+uint16_t palette[8] = {COLOR_TO_GPIO(0b111, 0b111, 0b111), \
+                       COLOR_TO_GPIO(0b000, 0b000, 0b000), \
+                       COLOR_TO_GPIO(0b110, 0b010, 0b010), \
+                       COLOR_TO_GPIO(0b111, 0b011, 0b011), \
+                       COLOR_TO_GPIO(0b111, 0b101, 0b101), \
+                       COLOR_TO_GPIO(0b011, 0b011, 0b101), \
+                       COLOR_TO_GPIO(0b100, 0b100, 0b110), \
+                       COLOR_TO_GPIO(0b101, 0b101, 0b111)};
+
 uint32_t start_level(uint8_t level) {
     // init
     rng_init();
+    gpu_update_palette(palette);
 
-    gpu_blank(BACK_BUFFER, 0);
-    gpu_blank(FRONT_BUFFER, 0);
+    gpu_blank(BACK_BUFFER, BG);
+    gpu_blank(FRONT_BUFFER, BG);
 
-    gpu_print_text(FRONT_BUFFER, x(0), y(0), 0b001, 0b000, "LEVEL");
-    gpu_print_text(FRONT_BUFFER, x(6), y(0), 0b001, 0b000, INLINE_DECIMAL2(level));
-    gpu_print_text(FRONT_BUFFER, x(0), y(2), 0b001, 0b000, "HI-SCORE");
-    gpu_print_text(FRONT_BUFFER, x(0), y(3), 0b001, 0b000, INLINE_DECIMAL8(HS));
-    gpu_print_text(FRONT_BUFFER, x(0), y(5), 0b001, 0b000, "SCORE");
-    gpu_print_text(FRONT_BUFFER, x(0), y(8), 0b001, 0b000, "WAVE  /");
-    gpu_print_text(FRONT_BUFFER, x(7), y(8), 0b001, 0b000, INLINE_DECIMAL1(ceil((double)level/8)));
+    gpu_print_text(FRONT_BUFFER, x(0), y(0), FG, BG, "LEVEL");
+    gpu_print_text(FRONT_BUFFER, x(6), y(0), FG, BG, INLINE_DECIMAL2(level));
+    gpu_print_text(FRONT_BUFFER, x(0), y(2), FG, BG, "HI-SCORE");
+    gpu_print_text(FRONT_BUFFER, x(0), y(3), FG, BG, INLINE_DECIMAL8(HS));
+    gpu_print_text(FRONT_BUFFER, x(0), y(5), FG, BG, "SCORE");
+    gpu_print_text(FRONT_BUFFER, x(0), y(8), FG, BG, "WAVE  /");
+    gpu_print_text(FRONT_BUFFER, x(7), y(8), FG, BG, INLINE_DECIMAL1(ceil((double)level/8)));
 
     Surface space = surf_create(w(14), h(13));
     Surface singer = surf_create(10, 10);
-    Surface guitarist = surf_create(10, 10);
-    Surface pianist = surf_create(10, 10);
-    Surface drummer = surf_create(10, 10);
-    Surface bassist = surf_create(10, 10);
-    Surface bass = surf_create(w(2), h(3));
-    Surface* enemies[4] = {&singer, &guitarist, &pianist, &drummer};
 
-    surf_fill(&singer, 0b001);
-    surf_fill(&guitarist, 0b010);
-    surf_fill(&pianist, 0b011);
-    surf_fill(&drummer, 0b100);
-    surf_fill(&space, BACKGROUND);
-    surf_fill(&bassist, 0b001);
-    surf_fill(&bass, 0b011);
+    Surface guitarist = surf_create_from_memory(10, 10, ASSET_GUITARIST_M3IF);
+    Surface pianist = surf_create_from_memory(10, 10, ASSET_PIANIST_M3IF);
+    Surface drummer = surf_create_from_memory(10, 10, ASSET_DRUMMER_M3IF);
+    Surface bassist = surf_create_from_memory(10, 10, ASSET_BASSIST_M3IF);
+    Surface bass = surf_create_from_memory(w(2), h(3), ASSET_BASS_M3IF);
+    Surface* enemies[4] = {&singer, &guitarist, &pianist, &drummer};
+    surf_fill(&space, BG);
 
     uint8_t playerx = 0;
     uint32_t score = 0;
@@ -79,6 +105,10 @@ uint32_t start_level(uint8_t level) {
         list_append(&ey, 20); // yt position
     }
 
+    uint32_t stop;
+    uint32_t start;
+    uint32_t deltatime;
+
     while (true) {
         // handle input
         if (input_get_button(0, BUTTON_LEFT)) if (playerx > 0) playerx--;
@@ -86,7 +116,7 @@ uint32_t start_level(uint8_t level) {
         if (input_get_button(0, BUTTON_A) && cooldown == 0) {
             list_append(&px, playerx+5);
             list_append(&py, PLAYERY);
-            cooldown += 15;
+            cooldown += 10;
         }
         if (cooldown > 0) cooldown--;
         for (int i = 0; i < px.size; i++) {
@@ -100,32 +130,32 @@ uint32_t start_level(uint8_t level) {
         }
 
         // render HUD
-        gpu_print_text(FRONT_BUFFER, x(0), y(6), 0b001, 0b000, INLINE_DECIMAL8(score));
-        gpu_print_text(FRONT_BUFFER, x(5), y(8), 0b001, 0b000, INLINE_DECIMAL1(wave));
+        gpu_print_text(FRONT_BUFFER, x(0), y(6), FG, BG, INLINE_DECIMAL8(score));
+        gpu_print_text(FRONT_BUFFER, x(5), y(8), FG, BG, INLINE_DECIMAL1(wave));
         if (lives != 0) {
             for (int i = 0; i < lives; i++) {
-                gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(0) + w(2)*i, y(10), bass.d);
+                gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(0) + w(2)*i+i, y(10), bass.d);
             }
         }
         gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(8), y(10), bass.d);
 
         // render player
-        surf_fill(&space, BACKGROUND);
+        surf_fill(&space, BG);
         surf_draw_surf(&space, &bassist, playerx, PLAYERY);
-        surf_draw_line(&space, playerx, PLAYERY+5, 0, 100, 0b001);
+        surf_draw_line(&space, playerx, PLAYERY+5, 0, 100, FG);
 
         // check enemy collision and draw projectiles
         for (int i = 0; i < et.size; i++) {
-            surf_draw_filled_rectangle(&space, ex.data[i]-5, ey.data[i]-5, 10, 10, 0b101); // hitboxes in yellow
+            surf_draw_filled_rectangle(&space, ex.data[i]-5, ey.data[i]-5, 10, 10, BLACK); // hitboxes in black
         }
         for (int proj = 0; proj < px.size; proj++) {
             uint8_t projx = px.data[proj];
             uint8_t projy = py.data[proj];
-            if (surf_get_pixel(&space, projx, projy) == 0b101) {
+            if (surf_get_pixel(&space, projx, projy) == BLACK) {
                 // collision
                 for (int enemy = 0; enemy < et.size; enemy++) {
                     if (difference(ex.data[enemy], projx) <= 5 && difference(ey.data[enemy], projy) <= 5) {
-                        surf_draw_filled_rectangle(&space, ex.data[enemy]-5, ey.data[enemy]-5, 10, 10, BACKGROUND);
+                        surf_draw_filled_rectangle(&space, ex.data[enemy]-5, ey.data[enemy]-5, 10, 10, BG);
                         list_remove(&et, enemy);
                         list_remove(&ex, enemy);
                         list_remove(&ey, enemy);
@@ -139,7 +169,6 @@ uint32_t start_level(uint8_t level) {
                 // no collision
                 surf_set_pixel(&space, projx, projy, 0b001);
             }
-
         }
 
         // render enemies
@@ -150,7 +179,13 @@ uint32_t start_level(uint8_t level) {
         // send all to gpu
         gpu_send_buf(FRONT_BUFFER, space.w, space.h, x(10), y(0), space.d);
 
-        timer_block_ms(20); // 50 fps
+        // timing
+        stop = timer_get_ms();
+        deltatime = stop - start;
+        if (deltatime < FRAMETIME) {
+            timer_block_ms(FRAMETIME - deltatime);
+        }
+        start = timer_get_ms();
     }
 
     // cleanup
@@ -214,21 +249,21 @@ uint8_t menu() {
 uint8_t start(void) {
     //startup sequence
     gpu_blank(FRONT_BUFFER, 0);
-    timer_block_ms(1000);
-    if (!input_get_button(0, BUTTON_A)) { //skip
-        gpu_print_text(FRONT_BUFFER, 25, 30, 0b001, 0b000, "YOUR PLAY THE BASS.");
-        timer_block_ms(1000);
-        gpu_print_text(FRONT_BUFFER, 33, 50, 0b001, 0b000, "THE OTHERS NEVER");
-        gpu_print_text(FRONT_BUFFER, 30, 60, 0b001, 0b000, "LET YOU PLAY YOUR");
-        gpu_print_text(FRONT_BUFFER, 36, 70, 0b001, 0b000, "EPIC BASS SOLO.");
-        timer_block_ms(3000);
-        gpu_blank(FRONT_BUFFER, 0b000);
-        timer_block_ms(1000);
-        gpu_print_text(FRONT_BUFFER, 35, 50, 0b001, 0b000, "DEFEND YOURSELF!");
-        timer_block_ms(1000);
-        gpu_blank(FRONT_BUFFER, 0b000);
-        timer_block_ms(1000);
-    }
+//    timer_block_ms(1000);
+//    if (!input_get_button(0, BUTTON_A)) { //skip
+//        gpu_print_text(FRONT_BUFFER, 25, 30, 0b001, 0b000, "YOUR PLAY THE BASS.");
+//        timer_block_ms(1000);
+//        gpu_print_text(FRONT_BUFFER, 33, 50, 0b001, 0b000, "THE OTHERS NEVER");
+//        gpu_print_text(FRONT_BUFFER, 30, 60, 0b001, 0b000, "LET YOU PLAY YOUR");
+//        gpu_print_text(FRONT_BUFFER, 36, 70, 0b001, 0b000, "EPIC BASS SOLO.");
+//        timer_block_ms(3000);
+//        gpu_blank(FRONT_BUFFER, 0b000);
+//        timer_block_ms(1000);
+//        gpu_print_text(FRONT_BUFFER, 35, 50, 0b001, 0b000, "DEFEND YOURSELF!");
+//        timer_block_ms(1000);
+//        gpu_blank(FRONT_BUFFER, 0b000);
+//        timer_block_ms(1000);
+//    }
 
     // logic loop
     while(run) {start_level(menu());}
