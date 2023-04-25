@@ -60,7 +60,7 @@ static void list_append(List* list, uint8_t value) {
 static void list_remove(List* list, uint32_t index) {
     if (index > list->size) return;
     list->size--;
-    memmove(list->data+index, list->data+index+1, list->size);
+    memmove(list->data+index, list->data+index+1, list->size-index);
     list->data = realloc(list->data, list->size);
 }
 
