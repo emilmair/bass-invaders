@@ -16,6 +16,7 @@
 #include "drummer.m3if.asset"
 #include "bassist.m3if.asset"
 #include "bass.m3if.asset"
+#include "levels.m3if.asset"
 
 #define LEVEL 0 // this is the level already completed by the user (0 = no level completed)
 #define HS 123456
@@ -85,6 +86,7 @@ uint32_t start_level(uint8_t level) {
     Surface bass = surf_create_from_memory(w(2), h(3), ASSET_BASS_M3IF);
     Surface* enemies[4] = {&singer, &guitarist, &pianist, &drummer};
     surf_fill(&space, BG);
+    Surface levels = surf_create_from_memory(10, 192, ASSET_LEVELS_M3IF);
 
     uint8_t playerx = 0;
     uint32_t score = 0;
@@ -118,10 +120,19 @@ uint32_t start_level(uint8_t level) {
         list_append(&ey, 20); // yt position
     }
 
+    uint8_t block_level = level;
+    if (level > 32) block_level = level - 32;
+    bool flip = level > 32; // simply invert the block arrangement after 32 levels
     for (int i = 0; i < 19; i++) {
         for (int j = 0; j < 6; j++) {
-            list_append(&bx, BLOCKX + i*4 + 2);
-            list_append(&by, BLOCKY + j*4 + 2);
+            uint8_t posx = i;
+            if (i > 9) posx = 18-i;
+            uint8_t posy = j+(block_level-1)*6;
+            if (flip) posy = 5-j+(block_level-1)*6;
+            if (surf_get_pixel(&levels,posx,posy) == BLACK) {
+                list_append(&bx, BLOCKX + i*4 + 2);
+                list_append(&by, BLOCKY + j*4 + 2);
+            }
         }
     }
 
