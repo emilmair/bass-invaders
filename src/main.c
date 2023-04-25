@@ -77,8 +77,7 @@ uint32_t start_level(uint8_t level) {
     gpu_print_text(FRONT_BUFFER, x(7), y(8), FG, BG, INLINE_DECIMAL1(ceil((double)level/8)));
 
     Surface space = surf_create(w(14), h(13));
-    Surface singer = surf_create(10, 10);
-
+    Surface singer = surf_create_from_memory(10, 10, ASSET_SINGER_M3IF);
     Surface guitarist = surf_create_from_memory(10, 10, ASSET_GUITARIST_M3IF);
     Surface pianist = surf_create_from_memory(10, 10, ASSET_PIANIST_M3IF);
     Surface drummer = surf_create_from_memory(10, 10, ASSET_DRUMMER_M3IF);
@@ -92,6 +91,11 @@ uint32_t start_level(uint8_t level) {
     uint8_t wave = 1; // current wave, maximum number of waves is level/8
 //    uint8_t left = level*4; // enemies left, max 256 at level 64
     uint8_t lives = (64-level)/16; // lives LEFT, game over when 0 and player dies
+    uint8_t last_lives = lives;
+    gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(8), y(10), bass.d);
+    for (int i = 0; i < lives; i++) {
+        gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(0) + w(2)*i+i, y(10), bass.d);
+    }
 
     List px = list_create(0); // projectiles x coordinates
     List py = list_create(0); // projectiles y coordinates
@@ -99,6 +103,7 @@ uint32_t start_level(uint8_t level) {
 
     List epx = list_create(0); // enemy projectiles x coordinates
     List epy = list_create(0); // enemy projectiles y coordinates
+    uint8_t ep_cooldown = 0;
 
     List ex = list_create(0); // enemy x coordinates
     List ey = list_create(0); // enemy y coordinates
@@ -128,10 +133,18 @@ uint32_t start_level(uint8_t level) {
         // handle input
         if (input_get_button(0, BUTTON_LEFT)) if (playerx > 0) playerx--;
         if (input_get_button(0, BUTTON_RIGHT)) if (playerx < PLAYERX_MAX) playerx++;
+
+        // shoot projectiles
         if (input_get_button(0, BUTTON_A) && cooldown == 0) {
             list_append(&px, playerx+5);
             list_append(&py, PLAYERY);
             cooldown += 10;
+        }
+        if (ep_cooldown == 0) {
+            uint8_t e = rng_u32()%et.size;
+            list_append(&epx, ex.data[e]);
+            list_append(&epy, ey.data[e]+5);
+            ep_cooldown = rng_u32()%(640/level);
         }
 
         // process player projectiles
@@ -146,34 +159,44 @@ uint32_t start_level(uint8_t level) {
             }
         }
 
-        // todo: process enemy projectiles
-
-        // render HUD
-        gpu_print_text(FRONT_BUFFER, x(0), y(6), FG, BG, INLINE_DECIMAL8(score));
-        gpu_print_text(FRONT_BUFFER, x(5), y(8), FG, BG, INLINE_DECIMAL1(wave));
-        if (lives != 0) {
-            for (int i = 0; i < lives; i++) {
-                gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(0) + w(2)*i+i, y(10), bass.d);
+        // process enemy projectiles
+        if (ep_cooldown > 0) ep_cooldown--;
+        for (int i = 0; i < epx.size; i++) {
+            if (epy.data[i] == space.height) {
+                list_remove(&epx, i);
+                list_remove(&epy, i);
+                i--;
+            } else {
+                epy.data[i] += 1;
             }
         }
-        gpu_send_buf(FRONT_BUFFER, bass.w, bass.h, x(8), y(10), bass.d);
 
         // clear canvas
         surf_fill(&space, BG);
 
-        // check collision and draw player projectiles
+        // render HUD
+        gpu_print_text(FRONT_BUFFER, x(0), y(6), FG, BG, INLINE_DECIMAL8(score));
+        gpu_print_text(FRONT_BUFFER, x(5), y(8), FG, BG, INLINE_DECIMAL1(wave));
+        if (lives != last_lives) {
+            gpu_send_buf(FRONT_BUFFER, w(2), h(3), x(2*lives)+lives, y(10), space.d);
+        }
+        last_lives = lives;
+
+        // draw hitboxes
         for (int i = 0; i < et.size; i++) {
             surf_draw_filled_rectangle(&space, ex.data[i]-5, ey.data[i]-5, 10, 10, DARK_RED); // enemy hitboxes in dark red
         }
         for (int i = 0; i < bx.size; i++) {
             surf_draw_filled_rectangle(&space, bx.data[i]-2, by.data[i]-2, 4, 4, MEDIUM_RED); // block hitboxes in medium red
         }
+        surf_draw_filled_rectangle(&space, playerx, PLAYERY, 10, 10, LIGHT_RED); // player in light red
+
+        // check collision and draw player projectiles
         for (int proj = 0; proj < px.size; proj++) {
             uint8_t projx = px.data[proj];
             uint8_t projy = py.data[proj];
             uint8_t pixel = surf_get_pixel(&space, projx, projy);
             if (pixel == DARK_RED) {
-                printf("enemy collision\n");
                 // enemy collision
                 for (int enemy = 0; enemy < et.size; enemy++) {
                     if (difference(ex.data[enemy], projx) <= 5 && difference(ey.data[enemy], projy) <= 5) {
@@ -188,10 +211,11 @@ uint32_t start_level(uint8_t level) {
                 list_remove(&py, proj);
                 proj--;
             } else if (pixel == MEDIUM_RED) {
-                printf("block collision\n");
                 // block collision
                 for (int block = 0; block < bx.size; block++) {
-                    if (difference(bx.data[block], projx) <= 2 && difference(by.data[block], projy) <= 2) {
+                    int8_t diffx = projx - bx.data[block];
+                    int8_t diffy = projy - by.data[block];
+                    if (diffx >= -2 && diffx <= 1 && diffy >= -2 && diffy <= 1) {
                         surf_draw_filled_rectangle(&space, bx.data[block]-2, by.data[block]-2, 4, 4, BG);
                         list_remove(&bx, block);
                         list_remove(&by, block);
@@ -203,11 +227,43 @@ uint32_t start_level(uint8_t level) {
                 proj--;
             } else {
                 // no collision
-                surf_set_pixel(&space, projx, projy, 0b001);
+                surf_set_pixel(&space, projx, projy, BLACK);
             }
         }
 
-        // todo: check collision and draw enemy projectiles
+        // check collision and draw enemy projectiles
+        for (int proj = 0; proj < epx.size; proj++) {
+            uint8_t projx = epx.data[proj];
+            uint8_t projy = epy.data[proj];
+            uint8_t pixel = surf_get_pixel(&space, projx, projy);
+            if (pixel == LIGHT_RED) {
+                // player collision
+                if (lives == 0) {
+                    // todo: handle death
+                } else lives--;
+                list_remove(&epx, proj);
+                list_remove(&epy, proj);
+                proj--;
+            } else if (pixel == MEDIUM_RED) {
+                // block collision
+                for (int block = 0; block < bx.size; block++) {
+                    int8_t diffx = projx - bx.data[block];
+                    int8_t diffy = projy - by.data[block];
+                    if (diffx >= -2 && diffx <= 1 && diffy >= -2 && diffy <= 1) {
+                        surf_draw_filled_rectangle(&space, bx.data[block]-2, by.data[block]-2, 4, 4, BG);
+                        list_remove(&bx, block);
+                        list_remove(&by, block);
+                        break;
+                    }
+                }
+                list_remove(&epx, proj);
+                list_remove(&epy, proj);
+                proj--;
+            } else {
+                // no collision
+                surf_set_pixel(&space, projx, projy, BLACK);
+            }
+        }
 
         // render enemies
         for (int i = 0; i < et.size; i++) {
@@ -242,6 +298,7 @@ uint32_t start_level(uint8_t level) {
     surf_destroy(&pianist);
     surf_destroy(&drummer);
     surf_destroy(&bassist);
+    surf_destroy(&bass);
 
     return score;
 }
