@@ -14,7 +14,7 @@
 #define COLOR_TO_GPIO(red, green, blue) (uint16_t)                                         \
             (((red & 0b100) >> 1) | ((red & 0b010) << 9) | ((red & 0b001) << 11) |         \
             ((green & 0b100) << 10) | ((green & 0b010) << 12) | ((green & 0b001) << 14) |  \
-            ((blue & 0b100) << 5) | ((blue & 0b010) << 7) | ((blue & 0b001) << 9))
+            ((blue & 0b100) << 5) | ((blue & 0b010) << 5) | ((blue & 0b001) << 5))
 
 // gpio config to rgb
 #define RED_FROM_GPIO(color) (((color << 1) & 0b100) | ((color >> 9) & 0b010 ) | ((color >> 11) & 0b001))
