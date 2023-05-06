@@ -148,6 +148,7 @@ static void surf_fill(Surface* surf, uint8_t color) {
 static void surf_draw_surf(Surface* destination_surf, Surface* source_surf, uint8_t x, uint8_t y) {
     for (int i = 0; i < source_surf->height; i++) {
         for (int j = 0; j < source_surf->width; j++) {
+            if (j+x > destination_surf->w || i+y > destination_surf->h) continue;
             surf_set_pixel(destination_surf, j+x, i+y, surf_get_pixel(source_surf, j, i));
         }
     }
