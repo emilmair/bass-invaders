@@ -5,6 +5,7 @@
 #define pot power_of_ten
 
 #include <stdint.h>
+#include <stdlib.h>
 
 /// returns ten to the power of n
 static uint32_t power_of_ten(uint32_t n) {
@@ -69,6 +70,10 @@ static uint8_t list_pop(List* list, uint32_t index) {
     uint8_t value = list_get(list, index);
     list_remove(list, index);
     return value;
+}
+
+static void list_destroy(List* list) {
+    free(list->data);
 }
 
 #endif //MATHS_H

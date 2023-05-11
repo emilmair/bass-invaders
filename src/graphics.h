@@ -2,6 +2,8 @@
 #define GRAPHICS_H
 
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -135,6 +137,8 @@ static void surf_draw_ellipse(Surface* surf, int xm, int ym, int a, int b, uint8
  * Thanks Alois!
 */
 
+
+/// fills surface with any given color.
 static void surf_fill(Surface* surf, uint8_t color) {
     if (color == 0b000) {memset(surf->data, 0x00, SURF_SIZE(surf->width, surf->height)); return;}
     else if (color == 0b111) {memset(surf->data, 0xFF, SURF_SIZE(surf->width, surf->height)); return;}
@@ -145,7 +149,17 @@ static void surf_fill(Surface* surf, uint8_t color) {
     }
 }
 
-static void surf_draw_surf(Surface* destination_surf, Surface* source_surf, uint8_t x, uint8_t y) {
+/// draws source_surf onto destination_surf
+static void surf_draw_surf_fast(Surface* destination_surf, Surface* source_surf, uint8_t x, uint8_t y) {
+    for (int i = 0; i < source_surf->height; i++) {
+        for (int j = 0; j < source_surf->width; j++) {
+            surf_set_pixel(destination_surf, j+x, i+y, surf_get_pixel(source_surf, j, i));
+        }
+    }
+}
+
+/// draws source_surf onto destination_surf, supports partially out of bounds surfaces and signed coordinates
+static void surf_draw_surf(Surface* destination_surf, Surface* source_surf, int16_t x, int16_t y) {
     for (int i = 0; i < source_surf->height; i++) {
         for (int j = 0; j < source_surf->width; j++) {
             if (j+x > destination_surf->w || i+y > destination_surf->h) continue;
@@ -154,6 +168,12 @@ static void surf_draw_surf(Surface* destination_surf, Surface* source_surf, uint
     }
 }
 
+/// draws every source_surf pixel different from alpha onto destination_surf
+static void surf_draw_surf_alpha_fast(Surface* destination_surf, Surface* source_surf, uint8_t x, uint8_t y, uint8_t alpha_color) {
+
+}
+
+/// draws every source_surf pixel different from alpha onto destination_surf, supports partially out of bounds surfaces and signed coordinates
 static void surf_draw_surf_alpha(Surface* destination_surf, Surface* source_surf, uint8_t x, uint8_t y, uint8_t alpha_color) {
 
 }
@@ -171,6 +191,14 @@ static void surf_draw_rectangle(Surface* surf, uint8_t x, uint8_t y, uint8_t wid
 }
 
 static void surf_draw_filled_rectangle(Surface* surf, uint8_t x, uint8_t y, uint8_t width, uint8_t height, uint8_t color) {
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            surf_set_pixel(surf, j+x, i+y, color);
+        }
+    }
+}
+
+static void surf_draw_filled_rectangle_fast(Surface* surf, uint8_t x, uint8_t y, uint8_t width, uint8_t height, uint8_t color) {
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
             surf_set_pixel(surf, j+x, i+y, color);
