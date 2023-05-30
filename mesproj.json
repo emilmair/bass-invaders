@@ -1,12 +1,24 @@
 {
-  "mes_version": "latest",
-  "vmes_version": "latest",
-  "mbs_version": "latest",
-  "sd_information": {
-    "name": "Bass Invaders",
-    "author": "Emil Mair",
-    "version": [0,1,0],
-    "icon": "assets/icon.m3if",
-    "game": "game.bin"
-  }
+    "mes_version": "latest",
+    "vmes_version": "latest",
+    "mbs_version": "latest",
+    "sd_information": {
+        "name": "Bass Invaders",
+        "author": "Emil Mair",
+        "version": [
+            0,
+            1,
+            0
+        ],
+        "icon": "assets/icon.m3ifp",
+        "colormap": {
+            "ffffff": 7,
+            "da4949": 1,
+            "ff6d6d": 2,
+            "9292da": 3,
+            "6d6db6": 4,
+            "ffb6b6": 5
+        },
+        "game": "game.bin"
+    }
 }

@@ -27,6 +27,7 @@
 #define PLAYERY 94
 #define BLOCKY h(8)
 #define BLOCKX 4
+#define ENEMY_OFFSET_MAX 5
 
 // debug
 #define FPS_OVERLAY false
@@ -132,12 +133,28 @@ uint32_t start_level(uint8_t level) {
     uint32_t start = 0;
     uint32_t stop = 0;
     uint32_t deltatime = 0;
+    uint32_t enemy_movement = 0;
+    int8_t enemy_direction = 1;
+    uint8_t enemy_offset = 0;
 
     bool run = true;
     while (run) {
         // handle input
         if (input_get_button(0, BUTTON_LEFT)) if (playerx > 0) playerx--;
         if (input_get_button(0, BUTTON_RIGHT)) if (playerx < PLAYERX_MAX) playerx++;
+
+        // move enemies
+        enemy_movement += deltatime;
+        if (enemy_movement >= 2000) {
+            for (int i = 0; i < et.size; i++) {
+                ex.data[i] += enemy_direction;
+            }
+            if (enemy_offset++ == ENEMY_OFFSET_MAX) {
+                enemy_offset = 0;
+                enemy_direction *= -1;
+            }
+            enemy_movement = 0;
+        }
 
         // shoot projectiles
         if (input_get_button(0, BUTTON_A) && cooldown == 0) {
@@ -280,9 +297,9 @@ uint32_t start_level(uint8_t level) {
         surf_draw_line(&space, playerx, PLAYERY+2, 0, 101, BLACK);
 
         // timing
+        gpu_block_frame();
         stop = timer_get_ms();
         deltatime = stop - start;
-        gpu_block_frame();
         start = timer_get_ms();
 
         // render HUD
@@ -340,6 +357,11 @@ uint8_t menu() {
     gpu_print_text(FRONT_BUFFER, x(12), y(11), BLACK, WHITE, "DIFFICULTY:");
     gpu_print_text(FRONT_BUFFER, x(12), y(8), BLACK, WHITE, "HIGHSCORE:");
     gpu_print_text(FRONT_BUFFER, x(12), y(5), BLACK, WHITE, "STATUS:");
+
+    // fake labels
+    gpu_print_text(FRONT_BUFFER, x(12), y(6), DARK_RED, WHITE, "NOT COMPLETE");
+    gpu_print_text(FRONT_BUFFER, x(12), y(9), DARK_BLUE, WHITE, "00000000");
+    gpu_print_text(FRONT_BUFFER, x(12), y(12), MEDIUM_BLUE, WHITE, "EASY");
 
     render_menu(0);
     uint8_t level, last_level, last_up, last_down, last_left, last_right, up, down, left, right;
